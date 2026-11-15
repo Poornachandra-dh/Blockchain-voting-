@@ -5,34 +5,73 @@
 
 ---
 
-## 🏛️ System Architecture
+## 🏛️ Comprehensive Multi-Tier Architecture
 
+```mermaid
+flowchart TD
+    subgraph Client["Tier 1: Client Edge (Browser WebCrypto :3000)"]
+        C1[Voter Login] --> C2[Generate sk_v & Salt r]
+        C2 --> C3[Identity Commitment C_id]
+        C3 --> C4[Certified Anonymous Credential]
+        C4 --> C5[Encode One-Hot Vector: 0, 1, 0, 0]
+        C5 --> C6[Paillier Encryption: c_k]
+        C6 --> C7[NIZK 1-of-K Proof CDS94]
+        C7 --> C8[Deterministic Nullifier NF]
+    end
+
+    subgraph Gateway["Tier 2: API Gateway (:8000)"]
+        G1[FastAPI REST Ingestion] --> G2[gRPC Dispatcher & Pool]
+        G2 --> G3[Endorsement Aggregator 2-of-3]
+        G3 --> G4[Raft Broadcast Client]
+        G4 --> G5[Merkle Receipt Generator]
+    end
+
+    subgraph Consortium["Tier 3: Hyperledger Fabric Consortium (Docker)"]
+        P1["peer0.org1.ec.gov:7051 (Org1MSP)"]
+        P2["peer0.org2.observer.org:8051 (Org2MSP)"]
+        P3["peer0.org3.civilsociety.ngo:9051 (Org3MSP)"]
+        ORD["orderer.aegis.election:7050 (Raft Consensus)"]
+        P1 & P2 & P3 --- ORD
+    end
+
+    subgraph SmartContract["Tier 4: Smart Contract Microservices (Go)"]
+        CC["voting_cc:1.0 (Chaincode Lifecycle)"]
+        CC --> CK1{"Nullifier Unique?"}
+        CK1 -->|No| REJ["REJECT: Double Voting"]
+        CK1 -->|Yes| CK2{"ZKP 1-of-K Valid?"}
+        CK2 -->|No| TAM["REJECT: Tampering"]
+        CK2 -->|Yes| WR["WRITE: NULLIFIER & BALLOT"]
+    end
+
+    subgraph Storage["Tier 5: Dual-Store World State & Ledger"]
+        DB0["couchdb0:5984 (Org 1 State)"]
+        DB1["couchdb1:6984 (Org 2 State)"]
+        DB2["couchdb2:7984 (Org 3 State)"]
+        BLK["LevelDB Block Store (Append-Only)"]
+    end
+
+    subgraph TallyTier["Tier 6: Threshold Decryption Ceremony"]
+        HOM["Homomorphic Vector Aggregation: Prod(c_i,k)"]
+        S1["Trustee 1 Decryption Share"]
+        S2["Trustee 2 Decryption Share"]
+        LAG["Lagrange Polynomial Reconstruction"]
+        HOM --> S1 & S2 --> LAG
+    end
+
+    subgraph AuditTier["Tier 7: Universal Verifier & Independent Audit"]
+        V_IND["Individual Merkle Leaf-to-Root Check"]
+        V_UNI["Consortium 6-Point Independent Audit"]
+    end
+
+    Client --> Gateway
+    Gateway --> Consortium
+    Consortium --> SmartContract
+    SmartContract --> Storage
+    Storage --> TallyTier
+    Storage & TallyTier --> AuditTier
 ```
-  ┌────────────────────────────────────────────────────────┐
-  │         Client Tier: Web Application (Port 3000)       │
-  │    Paillier Encryption | NIZK 1-of-K | NF Derivation   │
-  └───────────────────────────┬────────────────────────────┘
-                              │ HTTP / WebSocket
-                              ▼
-  ┌────────────────────────────────────────────────────────┐
-  │         Backend Tier: FastAPI Engine (Port 8000)       │
-  │      KYC Auth | Credential Issuance | Fabric Gateway   │
-  └───────────────────────────┬────────────────────────────┘
-                              │ gRPC (2-of-3 Endorsement)
-                              ▼
-  ┌─────────────────────────────────────────────────────────────────────────────┐
-  │              Hyperledger Fabric Permissioned Network (Docker)               │
-  │                                                                             │
-  │   [ Raft Orderer Container ]                                                │
-  │   orderer.aegis.election:7050 (Consensus & Block Sequencing)                │
-  │                                                                             │
-  │   [ Org 1: Election Commission ]  [ Org 2: Party Observer ]  [ Org 3: NGO ]│
-  │   peer0.org1.ec.gov:7051          peer0.org2.observer:8051    peer0.org3:9051
-  │   couchdb0:5984 (State Store)     couchdb1:6984 (State Store) couchdb2:7984│
-  │                                                                             │
-  │   [ Smart Contract Container: voting_cc:1.0 (Chaincode Lifecycle 2.5) ]     │
-  └─────────────────────────────────────────────────────────────────────────────┘
-```
+
+*(For the complete mathematical formulations and data schemas, see the primary [README.md](file:///Users/poorna-yashas/Documents/voting-blockchain/README.md).)*
 
 ---
 
