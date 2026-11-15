@@ -81,7 +81,7 @@ flowchart TD
 
 ## 🔬 Mathematical & Algorithmic Specifications
 
-### 1. Paillier Additive Homomorphic Encryption
+### 1. Paillier Additive Homomorphic Encryption (Why Not ElGamal?)
 Let $n = p \cdot q$ be the RSA modulus, $\lambda = \text{lcm}(p-1, q-1)$, and $g = n + 1$.
 - **Encryption**: For message $m \in \{0, 1\}$ and blinding factor $r \in \mathbb{Z}_n^*$:
   $$c = \mathcal{E}(m) = g^m \cdot r^n \pmod{n^2}$$
@@ -91,7 +91,19 @@ Let $n = p \cdot q$ be the RSA modulus, $\lambda = \text{lcm}(p-1, q-1)$, and $g
   $$C_{\text{aggregate}}[k] = \prod_{i=1}^N c_{i, k} \pmod{n^2} = \mathcal{E}\left(\sum_{i=1}^N v_{i, k}\right)$$
   *Decrypting $C_{\text{aggregate}}$ directly yields the final tally without ever exposing single votes!*
 
-### 2. Shamir's $(t, n)$ Threshold Decryption
+> **Paillier vs. ElGamal Cryptographic Justification**:  
+> While standard ElGamal is *multiplicatively homomorphic* ($E(m_1) \cdot E(m_2) = E(m_1 \cdot m_2)$) and useless for tallying votes, *Exponential ElGamal* can add exponents ($g^{m_1} \cdot g^{m_2} = g^{m_1+m_2}$). However, decrypting Exponential ElGamal yields $g^M$, which requires solving a computationally heavy **Discrete Logarithm Problem** ($\mathcal{O}(\sqrt{M})$ using Baby-Step Giant-Step). In contrast, **Paillier is natively additively homomorphic** and decrypts directly to the integer vote tally in **$\mathcal{O}(1)$ constant time** using linear division $L(u) = \frac{u-1}{n}$, scaling seamlessly to millions of voters.
+
+### 2. Hyperledger Fabric Dual-Store Ledger Architecture
+Hyperledger Fabric executes a deterministic **Execute-Order-Validate** lifecycle across private consortium channels:
+- **Phase 1: Simulation & Endorsement (Execute)**: Client submits proposal to 3 sovereign peers (`Org1MSP`, `Org2MSP`, `Org3MSP`). Peers execute Go chaincode (`voting_contract.go`), simulate against CouchDB, verify ZKP 1-of-K selection proofs, and sign the Read-Write Set.
+- **Phase 2: Ordering (Consensus)**: Raft ordering node (`orderer.aegis.election:7050`) sequences endorsed transactions chronologically into immutable blocks with Crash Fault Tolerant (CFT) finality.
+- **Phase 3: Validation & Commit**: Peers verify the `2-of-3` signature threshold policy, check for read-write concurrency conflicts (MVCC), append the block to the filesystem blockchain ledger, and atomically update the CouchDB World State (`NULLIFIER_<id> = SPENT`).
+- **Ledger Dual-Store**:
+  - **World State (CouchDB)**: High-speed $O(1)$ key-value snapshot for checking spent nullifiers and current ballot counts.
+  - **Blockchain Block Log (Merkle DAG)**: Cryptographically linked append-only blocks where every ballot transaction forms a leaf in the election Merkle Tree, guaranteeing tamper evidence.
+
+### 3. Shamir's $(t, n)$ Threshold Decryption
 The private decryption exponent $S$ is distributed among $n=3$ independent authorities using polynomial $f(x) = S + a_1 x \pmod{\lambda}$:
 - Share 1: $s_1 = f(1)$
 - Share 2: $s_2 = f(2)$

@@ -122,6 +122,23 @@ Then, each number is locked inside a special mathematical safe using **Paillier 
 > **Why Paillier?**  
 > If an attacker, hacker, or server admin looks at $[c_0, c_1, c_2, c_3]$, each one looks like an identical string of 600 random numbers. It is mathematically impossible to know which slot contains the `1` without the private key.
 
+### ❓ Crucial Question: "Did you use ElGamal Algorithm? Why Paillier instead?"
+
+Many research papers use the **ElGamal Cryptosystem** for voting. Here is the exact reason why **AegisVote chose Paillier over ElGamal**, and how they compare:
+
+| Property | Standard ElGamal | Exponential ElGamal | Paillier Cryptosystem (Used in AegisVote) |
+| :--- | :--- | :--- | :--- |
+| **Homomorphic Type** | **Multiplicatively Homomorphic** | **Additively Homomorphic** | **Natively Additively Homomorphic** |
+| **Equation** | $\mathcal{E}(m_1) \cdot \mathcal{E}(m_2) = \mathcal{E}(m_1 \cdot m_2)$ | $\mathcal{E}(m_1) \cdot \mathcal{E}(m_2) = \mathcal{E}(m_1 + m_2)$ | $\mathcal{E}(m_1) \cdot \mathcal{E}(m_2) = \mathcal{E}(m_1 + m_2)$ |
+| **Tally Decryption** | Reveals product $m_1 \times m_2$ (useless for counting votes) | Decrypts to $g^{\sum m}$. **Must solve Discrete Logarithm!** | Decrypts directly to integer sum $\sum m$ in **$\mathcal{O}(1)$ time**! |
+| **Computation Bottleneck** | Fast | **Extremely slow for large populations**: Solving $g^M = \text{result}$ requires Baby-Step Giant-Step ($\mathcal{O}(\sqrt{M})$). | **Zero discrete log search required**: Uses $L(u) = (u-1)/n$ linear division. |
+| **Primary Industry Use** | Mix-net shuffling (Helios Voting) | Small-scale toy voting | **Large-scale additive tallying (AegisVote)** |
+
+#### In Plain English:
+- **Standard ElGamal** multiplies numbers. If Poorna votes 1 and Vikas votes 1, ElGamal gives $1 \times 1 = 1$. That does NOT count votes!
+- **Exponential ElGamal** can add votes, but when you decrypt the final result, you don't get the number `2`—you get $g^2$. To find the real vote count with 100,000 voters, the server has to guess and brute-force the discrete logarithm: *"Is it $g^1$? $g^2$? $g^3$ ... $g^{100000}$?"* This is computationally expensive.
+- **Paillier** solves this natively! It is designed from the ground up so that multiplying ciphertexts adds the underlying integers, and decrypting reveals the exact count immediately in milliseconds without solving any discrete logarithm.
+
 ---
 
 ## Step 4: The Honesty Test (Zero-Knowledge 1-of-K Proof)
@@ -178,12 +195,63 @@ In AegisVote, **3 independent organizations** run the network together. For a ba
      [Committed to Blockchain Ledger]
 ```
 
-### ⚙️ Deep Technical Details:
-- **Hyperledger Fabric Chaincode**: Validates the ZKP proof and checks nullifier uniqueness in CouchDB.
-- **Raft Ordering Service**: Packages the transaction into Block #1.
-- **Merkle Tree Inclusion**: The ballot's transaction is hashed into a new leaf in the election's Merkle tree:
-  $$\text{Leaf} = \text{SHA256}(\text{tx\_id} \mathbin{\Vert} \mathcal{NF} \mathbin{\Vert} \text{ciphertexts} \mathbin{\Vert} \text{timestamp})$$
-  The tree root is updated to $\text{Root}_{\text{new}}$.
+### ⚙️ Deep Technical Details: Hyperledger Fabric Architecture
+
+Many people ask: *"Why did you use Hyperledger Fabric instead of public blockchains like Ethereum or Solana?"*
+
+| Metric | Public Blockchains (Ethereum / Polygon) | Hyperledger Fabric (Used in AegisVote) |
+| :--- | :--- | :--- |
+| **Transaction Fees (Gas)** | Voters must pay crypto gas (\$0.50 – \$15.00/vote) | **₹0 (Zero Gas Fees)** — permissioned consortium model |
+| **Throughput & Speed** | 15–30 TPS, probabilistic finality (minutes) | **2,000+ TPS**, deterministic 1-second finality |
+| **Consensus Model** | Proof-of-Stake / Proof-of-Work (wasteful mining) | **Raft Consensus** (Crash Fault Tolerant cluster) |
+| **Data Privacy** | Everything is public on Etherscan | **Private Permissioned Channels** with Membership Service Providers (MSP) |
+| **Vulnerability to Attacks** | Miners can front-run / censor transactions (MEV) | Endorsement policies guarantee multi-org agreement |
+
+#### The 3-Phase Fabric Transaction Lifecycle (Execute -> Order -> Validate):
+
+```
+ 1. PROPOSE & EXECUTE          2. ORDER (RAFT)               3. VALIDATE & COMMIT
+┌─────────────────────┐     ┌─────────────────────┐     ┌────────────────────────┐
+│ Voter submits       │     │ Raft Ordering Node  │     │ Each Peer verifies:    │
+│ ballot to Endorsing │────>│ sequences endorsed  │────>│ • 2-of-3 signatures    │
+│ Peers (Org 1, 2, 3) │     │ transactions into a │     │ • No nullifier conflict│
+│ Peers simulate in Go│     │ cryptographic block │     │ Appends block to log & │
+│ chaincode & sign    │     │ (Block #1)          │     │ updates CouchDB State  │
+└─────────────────────┘     └─────────────────────┘     └────────────────────────┘
+```
+
+1. **Phase 1: Simulation & Endorsement (Execute)**:
+   - Poorna's ballot is sent as a `Transaction Proposal` to the endorsing peer nodes:
+     - `peer0.org1.ec.gov` (Election Commission)
+     - `peer0.org2.observer.org` (Electoral Oversight)
+     - `peer0.org3.civilsociety.ngo` (Civil Watchdog)
+   - Each peer independently executes the Go smart contract (`voting_contract.go`):
+     ```go
+     // Real chaincode execution from blockchain/chaincode/voting/voting_contract.go
+     nullifierKey := fmt.Sprintf("NULLIFIER_%s_%s", electionID, nullifier)
+     existingNullifier, err := ctx.GetStub().GetState(nullifierKey)
+     if existingNullifier != nil {
+         return fmt.Errorf("DOUBLE_VOTING_ERROR: Nullifier %s already recorded", nullifier)
+     }
+     ```
+   - Each peer validates the Zero-Knowledge 1-of-K proof, confirms the nullifier is unspent, and signs an endorsement response containing the **Read-Write (RW) Set**.
+
+2. **Phase 2: Ordering (Consensus via Raft)**:
+   - Once Poorna's client collects at least 2 matching endorsements (satisfying the `OutOf(2, 'Org1MSP.peer', 'Org2MSP.peer', 'Org3MSP.peer')` policy), the transaction is submitted to the **Raft Ordering Service** (`orderer.aegis.election:7050`).
+   - The Raft cluster acts as a decentralized sequencer, packaging validated transactions into immutable blocks.
+
+3. **Phase 3: Validation & Ledger Commit**:
+   - The Orderer broadcasts the newly minted block to all peers in the consortium channel.
+   - Each peer independently performs **Multi-Version Concurrency Control (MVCC)** validation:
+     - Verifies that the nullifier was not spent by another concurrent transaction during ordering.
+     - Commits the block to the **Immutable Blockchain File Ledger**.
+     - Updates the **CouchDB World State** to atomically record: `NULLIFIER_election-pesce-2026_d81f... = SPENT`.
+   - The peer appends the transaction leaf to the **Merkle Tree**, computes the new **Merkle Root Hash**, and fires an event back to the client.
+
+#### The Dual-Store Blockchain Ledger Architecture:
+Hyperledger Fabric maintains two distinct storage layers:
+- **World State Database (CouchDB)**: Represents the *current snapshot* of the election (e.g., fast $O(1)$ lookup to check if a nullifier is spent, or the current ballot count).
+- **Blockchain Block Log (Append-Only Filesystem Ledger)**: The *unalterable historical ledger* storing every cryptographic block, hash pointer, endorsement certificate, and Merkle tree root since the genesis block. Even if an attacker modified CouchDB, the blockchain hash chain would immediately detect the tampering and reject it!
 
 ---
 
