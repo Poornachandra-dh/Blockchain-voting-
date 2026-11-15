@@ -175,7 +175,67 @@ CREATE TABLE IF NOT EXISTS ledger_audit_log (
 
 ---
 
-## ⚡ Quick Start & Local Execution
+## 🍎 macOS Setup Guide (MacBook Air / Pro — Apple Silicon M1/M2/M3/M4/M5)
+
+Running AegisVote on Apple Silicon (ARM64) is fully supported and optimized natively with zero emulator overhead.
+
+### Step 1: Install System Prerequisites
+Open your Terminal (`Cmd + Space` -> type `Terminal`) and ensure you have **Homebrew**, **Python**, and **Node.js**:
+
+```bash
+# 1. Install Xcode Command Line Tools (required for C cryptographic extensions)
+xcode-select --install
+
+# 2. Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 3. Install Python 3.10+ and Node.js LTS
+brew install python node
+```
+
+### Step 2: Clone the Repository
+```bash
+git clone https://github.com/Poornachandra-dh/Blockchain-voting-.git
+cd Blockchain-voting-
+```
+
+### Step 3: Run the One-Click macOS Launcher
+We provide an automated launcher for macOS:
+```bash
+chmod +x start_mac.sh
+./start_mac.sh
+```
+*This automatically creates the Python virtual environment, installs dependencies, boots the FastAPI cryptographic backend, launches the React interface, and opens `http://localhost:3000` in Safari/Chrome!*
+
+---
+
+### Manual Step-by-Step Setup on macOS (Terminal Tabs):
+
+#### Tab 1: FastAPI Backend
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+python3 start_server.py
+```
+> **Backend URL**: `http://127.0.0.1:8000`  
+> **Swagger API Docs**: `http://127.0.0.1:8000/docs`
+
+#### Tab 2: React Vite Frontend
+Open a new Terminal tab (`Cmd + T`):
+```bash
+cd frontend
+npm install
+npm run dev
+```
+> **Frontend URL**: `http://localhost:3000`
+
+---
+
+## ⚡ Quick Start & Local Execution (Windows / Linux)
 
 ### Prerequisites
 - **Python 3.10+**
