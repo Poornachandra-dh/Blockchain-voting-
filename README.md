@@ -1,7 +1,7 @@
 # AegisVote: Enterprise Privacy-Preserving Blockchain E-Voting Infrastructure
 
-> **Institutional-Grade, Zero-Knowledge, Homomorphic E-Voting Architecture on Hyperledger Fabric with Supabase Cloud Ledger Persistence.**  
-> Built for the Final Year Engineering Project (2026–27) | Department of Information Science & Engineering, PESCE Mandya.
+> **Institutional-Grade, Zero-Knowledge, Homomorphic E-Voting Architecture on Hyperledger Fabric with Multi-Organization Consensus & CouchDB World State.**  
+> Built for the Final Year Engineering Project (2026–27) | Department of Information Science & Engineering, P.E.S. College of Engineering, Mandya.
 
 ---
 
@@ -13,27 +13,27 @@
 - **Student Development Team**:
   1. **Poorna Chandra DH** (USN: `4PS23IS039`) — *Lead Cryptographic Architect & Core Backend*
   2. **Vikas B** (USN: `4PS23IS064`) — *Smart Contracts & Hyperledger Consensus Lead*
-  3. **Darshan C** (USN: `4PS23IS007`) — *Cloud Infrastructure & Supabase Persistence*
+  3. **Darshan C** (USN: `4PS23IS007`) — *Cloud Infrastructure & Persistence Lead*
   4. **Karthik S** (USN: `4PS23IS027`) — *Enterprise Frontend & UI/UX Systems*
 
 ---
 
 ## 🏛️ Executive Summary & The E-Voting Trilemma
 
-Remote electronic voting has historically suffered from the **E-Voting Trilemma**:
-1. **Unconditional Ballot Secrecy**: No party (not even the election commission, government, or database administrator) can tie a cast ballot to a voter's real-world identity.
-2. **Individual Verifiability**: A voter can mathematically prove their ballot was cast as intended and recorded on the ledger (*"Cast as intended, recorded as cast"*).
+Remote electronic elections have historically suffered from the **E-Voting Trilemma**:
+1. **Unconditional Ballot Secrecy**: No party (not even the election commission, government, or system administrator) can tie a cast ballot back to a voter's real-world identity.
+2. **Individual Verifiability**: A voter can mathematically verify that their ballot was cast as intended and immutably recorded on the ledger (*"Cast as intended, recorded as cast"*).
 3. **Universal Verifiability**: Any third-party auditor, journalist, or public observer can verify that the final tally equals the exact sum of all valid ballots without decrypting any individual ballot (*"Tallied as recorded"*).
 
 ### How AegisVote Solves the Trilemma:
 - **Zero Exposure via Paillier Homomorphism**: Ballots are encrypted client-side using Paillier additive homomorphic encryption. The tally is computed homomorphically by multiplying ciphertexts together—individual votes are **never decrypted**.
 - **No Single Point of Failure (SPoF)**: Employs a **2-of-3 Threshold Decryption Ceremony** split across 3 sovereign consortium trustees:
-  - **Trustee 1**: PESCE Election Commission (`Org1MSP`)
+  - **Trustee 1**: Election Commission of India / PESCE EC (`Org1MSP`)
   - **Trustee 2**: Independent Electoral Oversight / Cyber Cell (`Org2MSP`)
   - **Trustee 3**: Public Civil Watchdog NGO (`Org3MSP`)
-- **Sybil & Double-Voting Immunity**: Enforces **Credential-Bound Deterministic Nullifiers** ($NF = \text{SHA256}(\text{Domain} \mathbin{\Vert} \text{election\_id} \mathbin{\Vert} sk_v)$) with zero-knowledge binding proofs.
-- **Client-Side Proofs**: Uses non-interactive zero-knowledge proofs (NIZK) proving ballots satisfy 1-of-K selection constraints without revealing the chosen candidate.
-- **Enterprise UI**: Built with a clean, minimalist, high-contrast dark theme (Linear/Stripe aesthetic) backed by **Supabase Cloud Postgres**.
+- **Sybil & Double-Voting Immunity**: Enforces **Credential-Bound Deterministic Nullifiers** ($NF = \text{HMAC-SHA256}(sk_v, \text{"NULLIFIER:"} \mathbin{\Vert} \text{election\_id})$) with zero-knowledge binding proofs.
+- **Client-Side Proofs**: Non-Interactive Zero-Knowledge (NIZK) proofs demonstrate ballots satisfy 1-of-K selection constraints without revealing the chosen candidate.
+- **Live Multi-Org Hyperledger Fabric Consortium**: A 3-organization Dockerized Fabric network with Raft ordering, per-peer CouchDB world state databases, and 2-of-3 endorsement policies.
 
 ---
 
@@ -51,272 +51,295 @@ flowchart TD
         G --> H[Derive Deterministic Nullifier NF]
     end
 
-    subgraph Consortium["Hyperledger Fabric Consensus & Endorsement"]
+    subgraph Consortium["Hyperledger Fabric Consensus & Endorsement (Docker)"]
         H -->|Submit Sealed Ballot| I[FastAPI Core Engine]
         I --> J{Nullifier Unique?}
         J -->|No - Duplicate| K[Consensus REJECT: Double Voting]
         J -->|Yes| L{Verify ZKP 1-of-K?}
         L -->|Invalid| M[Consensus REJECT: Ballot Tampering]
         L -->|Valid| N[Collect 2-of-3 Consortium Endorsements]
-        N --> O[Append to Merkle Tree Ledger]
-        O --> P[Generate Cryptographic Inclusion Receipt]
-    end
-
-    subgraph CloudDB["Supabase Cloud Database Tier"]
-        A <-->|Verify KYC & Credentials| Q[(voters Table)]
-        O -->|Sync Immutable Block Trail| R[(ledger_audit_log Table)]
-        I <-->|Store Consortium Keys & Lifecycle| S[(elections Table)]
+        N --> O[Append to Block & CouchDB World State]
+        O --> P[Generate Cryptographic Merkle Receipt]
     end
 
     subgraph Tally["Consortium Threshold Decryption Ceremony"]
-        P --> T[Homomorphic Aggregation: Multiply All Ciphertexts]
-        T --> U[Trustee 1 Decrypts Partial Share]
-        T --> V[Trustee 2 Decrypts Partial Share]
-        U & V --> W[Lagrange Interpolation Reconstruction]
-        W --> X[Certified Outcome & Winner Declaration]
+        P --> Q[Homomorphic Aggregation: Multiply All Ciphertexts]
+        Q --> R[Trustee 1 Decrypts Partial Share]
+        Q --> S[Trustee 2 Decrypts Partial Share]
+        R & S --> T[Lagrange Interpolation Reconstruction]
+        T --> U[Certified Outcome & Winner Declaration]
     end
 ```
 
 ---
 
-## 🔬 Mathematical & Algorithmic Specifications
+## 🔬 Mathematical & Algorithmic Foundations
 
-### 1. Paillier Additive Homomorphic Encryption (Why Not ElGamal?)
+### 1. Paillier Additive Homomorphic Encryption
 Let $n = p \cdot q$ be the RSA modulus, $\lambda = \text{lcm}(p-1, q-1)$, and $g = n + 1$.
 - **Encryption**: For message $m \in \{0, 1\}$ and blinding factor $r \in \mathbb{Z}_n^*$:
   $$c = \mathcal{E}(m) = g^m \cdot r^n \pmod{n^2}$$
-- **Homomorphic Property**:
+- **Homomorphic Multiplication Property**:
   $$\mathcal{E}(m_1) \cdot \mathcal{E}(m_2) = (g^{m_1} r_1^n)(g^{m_2} r_2^n) = g^{m_1 + m_2} (r_1 r_2)^n \equiv \mathcal{E}(m_1 + m_2) \pmod{n^2}$$
 - **Aggregate Vector Tally**: For $N$ accepted ballots across $K$ candidates:
   $$C_{\text{aggregate}}[k] = \prod_{i=1}^N c_{i, k} \pmod{n^2} = \mathcal{E}\left(\sum_{i=1}^N v_{i, k}\right)$$
-  *Decrypting $C_{\text{aggregate}}$ directly yields the final tally without ever exposing single votes!*
+  *Decrypting $C_{\text{aggregate}}$ directly yields the final tally without exposing single votes!*
 
-> **Paillier vs. ElGamal Cryptographic Justification**:  
-> While standard ElGamal is *multiplicatively homomorphic* ($E(m_1) \cdot E(m_2) = E(m_1 \cdot m_2)$) and useless for tallying votes, *Exponential ElGamal* can add exponents ($g^{m_1} \cdot g^{m_2} = g^{m_1+m_2}$). However, decrypting Exponential ElGamal yields $g^M$, which requires solving a computationally heavy **Discrete Logarithm Problem** ($\mathcal{O}(\sqrt{M})$ using Baby-Step Giant-Step). In contrast, **Paillier is natively additively homomorphic** and decrypts directly to the integer vote tally in **$\mathcal{O}(1)$ constant time** using linear division $L(u) = \frac{u-1}{n}$, scaling seamlessly to millions of voters.
+### 2. Credential-Bound Deterministic Nullifier
+- To prevent double voting without deanonymizing voters, each voter derives:
+  $$\text{NF} = \text{HMAC-SHA256}(sk_v, \text{"NULLIFIER:"} \mathbin{\Vert} \text{election\_id})$$
+- Because $sk_v$ is fixed per voter and certified by the credential, exactly one valid nullifier exists per voter per election.
+- The smart contract records `NULLIFIER_<election_id>_<NF>` as `SPENT` in the same atomic transaction as the ballot. Any duplicate submission triggers an immediate transaction rejection.
 
-### 2. Hyperledger Fabric Dual-Store Ledger Architecture
-Hyperledger Fabric executes a deterministic **Execute-Order-Validate** lifecycle across private consortium channels:
-- **Phase 1: Simulation & Endorsement (Execute)**: Client submits proposal to 3 sovereign peers (`Org1MSP`, `Org2MSP`, `Org3MSP`). Peers execute Go chaincode (`voting_contract.go`), simulate against CouchDB, verify ZKP 1-of-K selection proofs, and sign the Read-Write Set.
-- **Phase 2: Ordering (Consensus)**: Raft ordering node (`orderer.aegis.election:7050`) sequences endorsed transactions chronologically into immutable blocks with Crash Fault Tolerant (CFT) finality.
-- **Phase 3: Validation & Commit**: Peers verify the `2-of-3` signature threshold policy, check for read-write concurrency conflicts (MVCC), append the block to the filesystem blockchain ledger, and atomically update the CouchDB World State (`NULLIFIER_<id> = SPENT`).
-- **Ledger Dual-Store**:
-  - **World State (CouchDB)**: High-speed $O(1)$ key-value snapshot for checking spent nullifiers and current ballot counts.
-  - **Blockchain Block Log (Merkle DAG)**: Cryptographically linked append-only blocks where every ballot transaction forms a leaf in the election Merkle Tree, guaranteeing tamper evidence.
-
-### 3. Shamir's $(t, n)$ Threshold Decryption
-The private decryption exponent $S$ is distributed among $n=3$ independent authorities using polynomial $f(x) = S + a_1 x \pmod{\lambda}$:
-- Share 1: $s_1 = f(1)$
-- Share 2: $s_2 = f(2)$
-- Share 3: $s_3 = f(3)$
-
-When voting closes, any $t = 2$ trustees provide partial decryptions. The master plaintext is reconstructed via **Lagrange Interpolation**:
-$$S = \sum_{j \in \{1, 2\}} s_j \cdot \ell_j(0) \pmod{\lambda}, \quad \text{where } \ell_j(0) = \prod_{m \ne j} \frac{0 - m}{j - m}$$
-
-### 3. Credential-Bound Nullifier
-- **Identity Commitment**:
-  $$\mathcal{C}_{\text{id}} = \text{SHA256}(\text{"AEGIS-ID:"} \mathbin{\Vert} sk_v \mathbin{\Vert} \text{salt})$$
-- **Deterministic Nullifier**:
-  $$\mathcal{NF} = \text{SHA256}(\text{"AEGIS-NULLIFIER:"} \mathbin{\Vert} \text{election\_id} \mathbin{\Vert} sk_v)$$
-- Guarantees strict one-voter-one-vote while remaining completely decoupled from real-world student identities.
-
-### 4. Merkle Tree Inclusion ($O(\log N)$ Receipt Verification)
-Each ballot transaction forms a leaf hash:
-$$\text{Leaf}_i = \text{SHA256}(\text{tx\_id} \mathbin{\Vert} \mathcal{NF}_i \mathbin{\Vert} \text{ciphertext\_summary} \mathbin{\Vert} \text{timestamp})$$
-Voters verify ballot inclusion against the public Merkle root with a logarithmic number of sibling hashes.
+### 3. Hyperledger Fabric Dual-Store Architecture
+- **Transaction Lifecycle**: Execute proposal simulation on endorsing peers (`peer0.org1`, `peer0.org2`, `peer0.org3`) $\to$ Verify 2-of-3 endorsement signatures $\to$ Raft Orderer batches into immutable blocks $\to$ Commit to per-peer CouchDB world state.
+- **Endorsement Policy**:
+  $$\text{Policy} = \text{OutOf}(2, \text{'Org1MSP.member'}, \text{'Org2MSP.member'}, \text{'Org3MSP.member'})$$
 
 ---
 
-## 🗄️ Supabase Cloud Database Schema
+## 📦 Container Topology & Active Network Nodes
 
-The system uses Supabase (PostgreSQL) hosted in the **South Asia (Mumbai)** region:
+| Container Name | Role | Port | State Store |
+| :--- | :--- | :--- | :--- |
+| **`orderer.aegis.election`** | **Raft Consensus Orderer** (`OrdererMSP`) | `7050` | Blocks sequenced with Raft finality |
+| **`peer0.org1.ec.gov`** | **Org 1: Election Commission Peer** (`Org1MSP`) | `7051` | Endorsing peer |
+| **`couchdb0`** | **Org 1 World State Store** | `5984` | Stores `votingchannel_voting_cc` |
+| **`peer0.org2.observer.org`** | **Org 2: Party Observer Peer** (`Org2MSP`) | `8051` | Endorsing peer |
+| **`couchdb1`** | **Org 2 World State Store** | `6984` | Independent replicate state |
+| **`peer0.org3.civilsociety.ngo`**| **Org 3: Civil Society NGO Peer** (`Org3MSP`) | `9051` | Endorsing peer |
+| **`couchdb2`** | **Org 3 World State Store** | `7984` | Independent replicate state |
+| **`aegis_cli`** | **Consortium CLI & Gateway Client** | N/A | Admin & Chaincode lifecycle |
+| **`dev-peer0.*-voting_cc_1.0`** | **Active Smart Contract Microservices** | Internal | Go chaincode runtime containers |
 
-### 1. `voters` Table (Identity & Authentication)
-```sql
-CREATE TABLE IF NOT EXISTS voters (
-    voter_id VARCHAR(64) PRIMARY KEY,
-    usn VARCHAR(32) UNIQUE NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    department VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    has_voted BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+---
 
-### 2. `elections` Table (Consortium Registry & Master Keys)
-```sql
-CREATE TABLE IF NOT EXISTS elections (
-    id VARCHAR(64) PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    status VARCHAR(32) DEFAULT 'VOTING',
-    public_key_n TEXT NOT NULL,
-    public_key_g TEXT NOT NULL,
-    merkle_root VARCHAR(64) NOT NULL,
-    accepted_ballots_count INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+## ⚡ Complete Deployment & Execution Guide (Scratch to End)
 
-### 3. `ledger_audit_log` Table (Immutable Block Trail)
-```sql
-CREATE TABLE IF NOT EXISTS ledger_audit_log (
-    id BIGSERIAL PRIMARY KEY,
-    election_id VARCHAR(64) NOT NULL,
-    block_number INT NOT NULL,
-    tx_id VARCHAR(64) NOT NULL UNIQUE,
-    nullifier_hash VARCHAR(64) NOT NULL,
-    ciphertext TEXT NOT NULL,
-    merkle_leaf VARCHAR(64) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+### Prerequisites Installation (macOS / Linux)
+```bash
+# 1. Install Docker Desktop, Go, and Node.js (via Homebrew on macOS)
+brew install --cask docker
+brew install go node python
+
+# 2. Start Docker Desktop and verify:
+docker --version && go version && node --version
 ```
 
 ---
 
-## 🖥️ User Experience & Web Portals
+### Phase 1: Bootstrap the Hyperledger Fabric Network
 
-| Page | URL Path | Description |
-| :--- | :--- | :--- |
-| **Enterprise Landing** | `/` | System overview, live cryptographic health indicators, and trust metrics. |
-| **Identity Gateway** | `/login` | USN authentication against Supabase KYC records with simulated FIDO2 biometrics. |
-| **Voting Portal** | `/voting` | Private, client-side encrypted ballot casting with instant cryptographic receipts. |
-| **3-Org Consortium** | `/consortium` | Multi-trustee threshold decryption ceremony with live endorsement monitoring. |
-| **Certified Results** | `/results` | Official outcome dashboard with homomorphic discrete-log verification proofs. |
-| **Universal Verifier** | `/verifier` | Public bulletin board and individual nullifier Merkle inclusion lookup. |
-
----
-
-## 🍎 macOS Setup Guide (MacBook Air / Pro — Apple Silicon M1/M2/M3/M4/M5)
-
-Running AegisVote on Apple Silicon (ARM64) is fully supported and optimized natively with zero emulator overhead.
-
-### Step 1: Install System Prerequisites
-Open your Terminal (`Cmd + Space` -> type `Terminal`) and ensure you have **Homebrew**, **Python**, and **Node.js**:
-
+#### 1. Generate Certificates & Channel Genesis Artifacts
 ```bash
-# 1. Install Xcode Command Line Tools (required for C cryptographic extensions)
-xcode-select --install
-
-# 2. Install Homebrew (if not already installed)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# 3. Install Python 3.10+ and Node.js LTS
-brew install python node
+./blockchain/network/scripts/generate_artifacts.sh
 ```
+*Generates cryptographic material (`crypto-config`) for all 3 organizations and Raft Orderer, and builds `genesis.block` and `votingchannel.tx`.*
 
-### Step 2: Clone the Repository
+#### 2. Launch the 8 Consortium Docker Containers
 ```bash
-git clone https://github.com/Poornachandra-dh/Blockchain-voting-.git
-cd Blockchain-voting-
-```
-
-### Step 3: Run the One-Click macOS Launcher
-We provide an automated launcher for macOS:
-```bash
-chmod +x start_mac.sh
-./start_mac.sh
-```
-*This automatically creates the Python virtual environment, installs dependencies, boots the FastAPI cryptographic backend, launches the React interface, and opens `http://localhost:3000` in Safari/Chrome!*
-
----
-
-### Manual Step-by-Step Setup on macOS (Terminal Tabs):
-
-#### Tab 1: FastAPI Backend
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-
-pip install --upgrade pip
-pip install -r requirements.txt
-python3 start_server.py
-```
-> **Backend URL**: `http://127.0.0.1:8000`  
-> **Swagger API Docs**: `http://127.0.0.1:8000/docs`
-
-#### Tab 2: React Vite Frontend
-Open a new Terminal tab (`Cmd + T`):
-```bash
-cd frontend
-npm install
-npm run dev
-```
-> **Frontend URL**: `http://localhost:3000`
-
----
-
-## ⚡ Quick Start & Deployment
-
-For a detailed step-by-step walkthrough covering every command and stage, see the **[Operational Guide](file:///Users/poorna-yashas/Documents/voting-blockchain/OPERATIONAL_GUIDE.md)**.
-
-### 1. Start the Hyperledger Fabric Blockchain Network (Docker)
-Ensure Docker Desktop is running, then:
-```bash
-# Start 3-Org consortium nodes + Raft Orderer + CouchDB instances
 cd blockchain/network
 docker compose -f docker-compose-consortium.yaml up -d
 cd ../..
 ```
 
-*(If setting up for the first time or performing a clean ledger reset):*
+#### 3. Verify All Nodes are Active
 ```bash
-# Generate certs & genesis
-./blockchain/network/scripts/generate_artifacts.sh
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+```
 
-# Restart network & join channel
-cd blockchain/network && docker compose -f docker-compose-consortium.yaml up -d && cd ../..
-sleep 3
+#### 4. Create Channel & Join All 3 Peers
+```bash
 docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/create_and_join_channel.sh
+```
+
+#### 5. Package, Install, Approve & Commit Smart Contract (`voting_cc`)
+```bash
 docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/deploy_chaincode.sh
 ```
+*Packages `voting_contract.go`, installs across all 3 peers, approves the 2-of-3 endorsement definition, commits it on `votingchannel`, and initializes the election on the ledger.*
 
-### 2. Launch Application Tier (Backend & Frontend)
-On macOS (Apple Silicon):
+---
+
+### Phase 2: Start the Application Tier
+
+#### One-Click Launch (macOS):
 ```bash
+chmod +x start_mac.sh
 ./start_mac.sh
 ```
-Or manually in separate terminals:
-```bash
-# Terminal 1: FastAPI Backend (http://127.0.0.1:8000)
-cd backend && source venv/bin/activate && python3 main.py
+*Automatically sets up Python virtualenv, installs frontend packages, boots FastAPI on `http://127.0.0.1:8000`, launches Vite on `http://localhost:3000`, and opens your default browser.*
 
-# Terminal 2: React Frontend (http://localhost:3000)
-cd frontend && npm install && npm run dev
-```
+#### Manual Launch (Separate Terminals):
+- **Terminal 1 — FastAPI Backend:**
+  ```bash
+  cd backend
+  python3 -m venv venv
+  source venv/bin/activate
+  pip install -r requirements.txt
+  python3 main.py
+  ```
+  - API Server: `http://127.0.0.1:8000`
+  - Interactive Swagger API Documentation: `http://127.0.0.1:8000/docs`
 
-### 3. Run Automated Consortium & Cryptographic Test Suite
-```bash
-backend/venv/bin/pytest backend/tests/ -v
-```
+- **Terminal 2 — React / Vite Frontend:**
+  ```bash
+  cd frontend
+  npm install
+  npm run dev
+  ```
+  - Web Application: `http://localhost:3000`
 
-### 4. Direct Blockchain & Ledger Inspection
-- **Query Ledger State via CLI**:
+---
+
+## 🗳️ Web Application User Journey (10 Stages)
+
+### 1. Voter Authentication & Credential Issuance
+1. Navigate to **`http://localhost:3000`** $\to$ Click **"Voter Portal"**.
+2. Sign in using any pre-seeded synthetic test account:
+   - `VOTER-001` / `password123` *(Poorna Chandra)*
+   - `VOTER-002` / `password123` *(Vikas B)*
+   - `VOTER-003` / `password123` *(Darshan C)*
+   - `VOTER-004` / `password123` *(Karthik S)*
+3. Identity is verified under NIST SP 800-63-3. The browser generates secret $sk_v$ and receives an anonymous voting credential.
+
+### 2. Client-Side Encryption & Casting
+1. Select a candidate.
+2. Click **"Seal & Cast Encrypted Ballot"**.
+3. Browser performs Paillier encryption, generates ZKP 1-of-K validity proof, computes nullifier $NF$, and submits the proposal.
+4. Peers endorse, Raft sequences the transaction into a block, and you receive an immutable **Ballot Inclusion Receipt** with the Merkle proof.
+
+### 3. Sybil / Double Voting Defense Demonstration
+1. Attempt to cast a second ballot with `VOTER-001`.
+2. The transaction is instantly rejected by the smart contract on the blockchain:
+   ```
+   DOUBLE_VOTING_ERROR: Nullifier has already been recorded on the ledger
+   ```
+
+### 4. Consortium Tally Ceremony
+1. Go to **"Consortium Console"** (`/consortium`).
+2. Click **"Close Voting & Begin Tally Ceremony"**.
+3. Ballots are aggregated homomorphically. Trustees 1 and 2 contribute partial decryption shares, and Lagrange reconstruction computes the final totals without decrypting single ballots.
+
+### 5. Universal Verifier & Independent 3-Authority Audit
+1. Go to **"Universal Verifier"** (`/verifier`).
+2. Enter your receipt Transaction ID to verify your ballot's presence in the Merkle root.
+3. Review the 6 independent checks conducted and signed by Org 1, Org 2, and Org 3:
+   - Ballot Validity
+   - Nullifier Uniqueness
+   - Accepted Ballot Count
+   - Blockchain Integrity
+   - Homomorphic Sum Correctness
+   - Tally Consistency
+
+---
+
+## 🔍 Diagnostic & Inspection Commands
+
+Run these from any terminal window on your machine:
+
+- **Query Live Election from Blockchain Ledger**:
   ```bash
   docker exec aegis_cli peer chaincode query -C votingchannel -n voting_cc -c '{"function":"QueryElection","Args":["election-pesce-2026"]}'
   ```
+
 - **Inspect CouchDB World State Database in Browser**:
-  Open [http://localhost:5984/_utils](http://localhost:5984/_utils) (User: `admin`, Password: `adminpw`).
-- **View Live Peer Logs**:
+  Open [http://localhost:5984/_utils](http://localhost:5984/_utils) (User: `admin`, Password: `adminpw`) $\to$ Database: `votingchannel_voting_cc`.
+
+- **Stream Live Peer Logs**:
   ```bash
   docker logs peer0.org1.ec.gov --tail 25
   ```
+
+- **Run Automated Test Suite (13/13 passing tests)**:
+  ```bash
+  backend/venv/bin/pytest backend/tests/ -v
+  ```
+
+---
+
+## 📁 Repository Directory Structure
+
+```
+voting-blockchain/
+├── backend/
+│   ├── app/
+│   │   ├── api/routes/          # REST endpoints (auth, ballot, consortium, audit)
+│   │   ├── core/                # JWT security, config, and settings
+│   │   ├── crypto/              # Paillier, ZKP, and Nullifier algorithms
+│   │   ├── models/              # Pydantic data schemas
+│   │   └── services/
+│   │       ├── fabric_service.py # Live gRPC/CLI gateway to Hyperledger Fabric
+│   │       └── voting_service.py # Election lifecycle orchestration
+│   ├── tests/                   # 13 automated unit & live integration tests
+│   ├── main.py                  # FastAPI application entrypoint
+│   └── requirements.txt         # Python dependencies
+├── blockchain/
+│   ├── chaincode/voting/
+│   │   ├── go.mod               # Go module definition
+│   │   └── voting_contract.go   # Smart contract (Fabric contract API)
+│   └── network/
+│       ├── configtx.yaml        # Channel profiles & Consortium definition
+│       ├── crypto-config.yaml   # MSP cryptographic topology (3 Orgs + Orderer)
+│       ├── docker-compose-consortium.yaml # Docker stack (8 nodes)
+│       └── scripts/
+│           ├── generate_artifacts.sh      # cryptogen & configtxgen runner
+│           ├── create_and_join_channel.sh # Channel genesis and peer joins
+│           └── deploy_chaincode.sh        # Chaincode lifecycle deployment
+├── frontend/
+│   ├── src/
+│   │   ├── components/          # Reusable UI cards, tables, modals
+│   │   ├── pages/               # Voter Portal, Consortium, Verifier, Chaos Sim
+│   │   └── services/            # Client-side Paillier & WebCrypto crypto engine
+│   ├── package.json
+│   └── vite.config.ts
+├── OPERATIONAL_GUIDE.md         # Exhaustive 10-stage handbook with CLI commands
+├── start_mac.sh                 # One-click launcher script for macOS
+└── README.md                    # Primary institutional and technical documentation
+```
 
 ---
 
 ## 🛡️ Security & Threat Resistance Matrix
 
-| Threat Vector | Attack Scenario | AegisVote Mitigation Mechanism |
+| Threat Vector | Attack Scenario | AegisVote Defense Mechanism |
 | :--- | :--- | :--- |
-| **Double Voting** | Voter attempts to submit multiple ballots. | The deterministic nullifier $\mathcal{NF}$ is identical. Chaincode consensus rejects the transaction. |
-| **Ballot Stuffing** | Attacker injects arbitrary counts like $[100, 0, 0, 0]$. | Non-Interactive Zero-Knowledge (NIZK) 1-of-K selection proof verification fails on all peers. |
-| **Rogue Administrator** | Server admin inspects database rows to read votes. | All ballots in database and blockchain are Paillier ciphertexts. Reading votes is mathematically impossible without 2-of-3 threshold keys. |
-| **Trustee Collusion** | A corrupt authority attempts unilateral decryption. | 2-of-3 threshold requires at least two sovereign organizations to compute Lagrange shares. |
-| **Coercion / Vote Buying** | Coercer demands proof of how voter voted. | Receipt only contains $\mathcal{NF}$ and Merkle leaf hash. Zero candidate data is disclosed. |
+| **Double Voting** | Voter submits multiple ballots with different candidates. | Deterministic nullifier $NF$ is identical; chaincode rejects duplicate nullifiers at endorsement. |
+| **Ballot Stuffing** | Attacker injects malformed vector like $[100, 0, 0, 0]$. | NIZK 1-of-K selection proof verification fails on endorsing peers prior to ordering. |
+| **Rogue Administrator** | Server admin inspects database/ledger to view choices. | All stored votes are Paillier ciphertexts. Reading votes is mathematically impossible without 2-of-3 threshold keys. |
+| **Trustee Collusion** | Corrupt trustee attempts unilateral decryption. | 2-of-3 threshold requires at least two sovereign consortium members to compute Lagrange shares. |
+| **Coercion / Vote Buying** | Coercer demands proof of vote choice. | Receipt only contains $NF$ and Merkle inclusion proof; zero candidate data is disclosed. |
 
 ---
 
-## 📜 License & Compliance
+## 🧹 Network Teardown & Clean Reset
 
-Distributed under the **MIT License**. Compliant with **NIST SP 800-63-3** (Digital Identity Guidelines) and **Voluntary Voting System Guidelines (VVSG 2.0)** for end-to-end verifiability (E2E-V).
+- **To Pause Containers**:
+  ```bash
+  cd blockchain/network && docker compose -f docker-compose-consortium.yaml stop
+  ```
+- **To Resume Containers**:
+  ```bash
+  cd blockchain/network && docker compose -f docker-compose-consortium.yaml start
+  ```
+- **To Completely Reset (Wipe ledger and restart clean)**:
+  ```bash
+  ./blockchain/network/scripts/generate_artifacts.sh
+  cd blockchain/network
+  docker compose -f docker-compose-consortium.yaml down -v
+  docker compose -f docker-compose-consortium.yaml up -d
+  sleep 3
+  docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/create_and_join_channel.sh
+  docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/deploy_chaincode.sh
+  ```
+
+---
+
+## 📜 Academic References & Bibliography
+
+1. Y.-N. Jung, S.-B. Cho, S.-H. Yun, and H.-J. Seo, *"Anonymous E-Voting on Hyperledger Fabric: Practical Mitigation of the Verification Paradox and Coercion Resistance,"* Applied Sciences, vol. 16, no. 14, p. 6953, 2026.
+2. Hyperledger Foundation, *"Hyperledger Fabric Documentation: Architecture, Consensus, and Chaincode Lifecycle,"* 2025.
+3. P. Paillier, *"Public-Key Cryptosystems Based on Composite Degree Residuosity Classes,"* in Advances in Cryptology—EUROCRYPT ’99, LNCS 1592, pp. 223–238, 1999.
+4. D. Chaum, *"Blind Signatures for Untraceable Payments,"* in Advances in Cryptology—CRYPTO ’82, pp. 199–203, 1983.
+5. NIST Special Publication 800-63-3, *"Digital Identity Guidelines: Enrollment, Authentication, and Lifecycle Management,"* 2020.
+6. Voluntary Voting System Guidelines (VVSG 2.0), *"End-to-End Verifiable Electronic Voting Systems,"* U.S. Election Assistance Commission, 2021.
