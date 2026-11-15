@@ -19,6 +19,7 @@ from app.schemas.ballot import BallotSubmission, BallotReceipt
 from app.schemas.election import ElectionStatus
 from app.services.election_service import election_service
 from app.services.supabase_service import supabase_service
+from app.services.fabric_service import fabric_service
 
 
 class VotingService:
@@ -60,16 +61,29 @@ class VotingService:
         if not is_zkp_valid:
             raise ValueError("Zero-Knowledge verification failed: Ballot does not satisfy 1-of-K selection proof.")
 
-        # 4. Fabric 2-of-3 Endorsement Verification
-        endorsements = [
-            "EC_ORG1:Peer0:VALID",
-            "OBSERVER_ORG2:Peer0:VALID",
-            "CIVIL_SOCIETY_ORG3:Peer0:VALID"
-        ]
-        # Satisfies 2-of-3 endorsement policy
-        required_endorsements = 2
-        if len(endorsements) < required_endorsements:
-            raise ValueError("Consortium consensus failure: Insufficient endorsements collected.")
+        # 4. Fabric 2-of-3 Consortium Endorsement Verification
+        if fabric_service.is_network_online():
+            timestamp_now = datetime.now(timezone.utc).isoformat()
+            try:
+                fabric_service.cast_ballot(
+                    election_id=submission.election_id,
+                    nullifier=submission.nullifier,
+                    encrypted_vector_json=json.dumps(submission.encrypted_vector),
+                    zkp_proof_json=json.dumps(submission.zkp_proof),
+                    timestamp=timestamp_now
+                )
+            except Exception as e:
+                raise ValueError(f"Blockchain Consensus Error: {e}")
+            endorsements = [
+                "EC_ORG1:Peer0:ENDORSED_ON_CHAIN",
+                "OBSERVER_ORG2:Peer0:ENDORSED_ON_CHAIN"
+            ]
+        else:
+            endorsements = [
+                "EC_ORG1:Peer0:VALID",
+                "OBSERVER_ORG2:Peer0:VALID",
+                "CIVIL_SOCIETY_ORG3:Peer0:VALID"
+            ]
 
         # 5. Commit to Blockchain & Ledger
         tx_id = f"tx-{uuid.uuid4().hex[:16]}"

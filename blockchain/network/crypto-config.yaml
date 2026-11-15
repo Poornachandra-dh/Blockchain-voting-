@@ -1,0 +1,32 @@
+# Crypto Configuration for AegisVote 3-Organization Consortium
+OrdererOrgs:
+  - Name: Orderer
+    Domain: aegis.election
+    EnableNodeOUs: false
+    Specs:
+      - Hostname: orderer
+
+PeerOrgs:
+  - Name: Org1
+    Domain: org1.ec.gov
+    EnableNodeOUs: false
+    Template:
+      Count: 1
+    Users:
+      Count: 1
+
+  - Name: Org2
+    Domain: org2.observer.org
+    EnableNodeOUs: false
+    Template:
+      Count: 1
+    Users:
+      Count: 1
+
+  - Name: Org3
+    Domain: org3.civilsociety.ngo
+    EnableNodeOUs: false
+    Template:
+      Count: 1
+    Users:
+      Count: 1

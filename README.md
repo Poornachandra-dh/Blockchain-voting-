@@ -247,43 +247,61 @@ npm run dev
 
 ---
 
-## ⚡ Quick Start & Local Execution (Windows / Linux)
+## ⚡ Quick Start & Deployment
 
-### Prerequisites
-- **Python 3.10+**
-- **Node.js v18+**
+For a detailed step-by-step walkthrough covering every command and stage, see the **[Operational Guide](file:///Users/poorna-yashas/Documents/voting-blockchain/OPERATIONAL_GUIDE.md)**.
 
-### 1. Clone the Repository
+### 1. Start the Hyperledger Fabric Blockchain Network (Docker)
+Ensure Docker Desktop is running, then:
 ```bash
-git clone https://github.com/Poornachandra-dh/Blockchain-voting-.git
-cd Blockchain-voting-
+# Start 3-Org consortium nodes + Raft Orderer + CouchDB instances
+cd blockchain/network
+docker compose -f docker-compose-consortium.yaml up -d
+cd ../..
 ```
 
-### 2. Backend Setup
+*(If setting up for the first time or performing a clean ledger reset):*
 ```bash
-cd backend
-python -m venv .venv
-.\.venv\Scripts\activate      # Windows
-source .venv/bin/activate    # Linux / macOS
+# Generate certs & genesis
+./blockchain/network/scripts/generate_artifacts.sh
 
-pip install -r requirements.txt
-python start_server.py
+# Restart network & join channel
+cd blockchain/network && docker compose -f docker-compose-consortium.yaml up -d && cd ../..
+sleep 3
+docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/create_and_join_channel.sh
+docker exec aegis_cli /bin/bash /opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/deploy_chaincode.sh
 ```
-*Backend runs on `http://127.0.0.1:8000` (API Docs: `http://127.0.0.1:8000/docs`).*
 
-### 3. Frontend Setup
+### 2. Launch Application Tier (Backend & Frontend)
+On macOS (Apple Silicon):
 ```bash
-cd frontend
-npm install
-npm run dev
+./start_mac.sh
 ```
-*Frontend runs on `http://localhost:3000`.*
-
-### 4. Running the Cryptographic Verification Suite
+Or manually in separate terminals:
 ```bash
-cd backend
-pytest tests/test_crypto_and_pipeline.py -v
+# Terminal 1: FastAPI Backend (http://127.0.0.1:8000)
+cd backend && source venv/bin/activate && python3 main.py
+
+# Terminal 2: React Frontend (http://localhost:3000)
+cd frontend && npm install && npm run dev
 ```
+
+### 3. Run Automated Consortium & Cryptographic Test Suite
+```bash
+backend/venv/bin/pytest backend/tests/ -v
+```
+
+### 4. Direct Blockchain & Ledger Inspection
+- **Query Ledger State via CLI**:
+  ```bash
+  docker exec aegis_cli peer chaincode query -C votingchannel -n voting_cc -c '{"function":"QueryElection","Args":["election-pesce-2026"]}'
+  ```
+- **Inspect CouchDB World State Database in Browser**:
+  Open [http://localhost:5984/_utils](http://localhost:5984/_utils) (User: `admin`, Password: `adminpw`).
+- **View Live Peer Logs**:
+  ```bash
+  docker logs peer0.org1.ec.gov --tail 25
+  ```
 
 ---
 
