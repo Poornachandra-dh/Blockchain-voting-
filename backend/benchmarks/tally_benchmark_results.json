@@ -1,0 +1,44 @@
+[
+  {
+    "voters": 100,
+    "elgamal_tally_ms": 31.862,
+    "paillier_tally_ms": 3.354,
+    "speedup_factor": 9.5
+  },
+  {
+    "voters": 500,
+    "elgamal_tally_ms": 38.257,
+    "paillier_tally_ms": 6.945,
+    "speedup_factor": 5.51
+  },
+  {
+    "voters": 1000,
+    "elgamal_tally_ms": 46.917,
+    "paillier_tally_ms": 11.545,
+    "speedup_factor": 4.06
+  },
+  {
+    "voters": 5000,
+    "elgamal_tally_ms": 121.602,
+    "paillier_tally_ms": 48.178,
+    "speedup_factor": 2.52
+  },
+  {
+    "voters": 10000,
+    "elgamal_tally_ms": 198.421,
+    "paillier_tally_ms": 93.356,
+    "speedup_factor": 2.13
+  },
+  {
+    "voters": 25000,
+    "elgamal_tally_ms": 462.404,
+    "paillier_tally_ms": 233.062,
+    "speedup_factor": 1.98
+  },
+  {
+    "voters": 50000,
+    "elgamal_tally_ms": 866.44,
+    "paillier_tally_ms": 461.279,
+    "speedup_factor": 1.88
+  }
+]

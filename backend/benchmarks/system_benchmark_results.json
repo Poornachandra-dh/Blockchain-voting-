@@ -1,0 +1,53 @@
+{
+  "cryptographic_microbenchmarks": {
+    "paillier_vector_enc_mean_ms": 34.777,
+    "paillier_vector_enc_p95_ms": 34.951,
+    "zkp_proof_gen_mean_ms": 0.011,
+    "zkp_proof_gen_p95_ms": 0.012,
+    "zkp_proof_ver_mean_ms": 0.001,
+    "zkp_proof_ver_p95_ms": 0.001,
+    "nullifier_derivation_mean_ms": 0.0017,
+    "merkle_verify_mean_ms": 0.0032
+  },
+  "attack_resilience": {
+    "double_voting_rejection_rate_pct": 100.0,
+    "ballot_stuffing_rejection_rate_pct": 100.0
+  },
+  "throughput_evaluation": [
+    {
+      "concurrent_voters": 1,
+      "tps": 1.87,
+      "mean_latency_ms": 496.94,
+      "p95_latency_ms": 496.94,
+      "error_rate_pct": 0.0
+    },
+    {
+      "concurrent_voters": 10,
+      "tps": 10.8,
+      "mean_latency_ms": 543.18,
+      "p95_latency_ms": 543.18,
+      "error_rate_pct": 0.0
+    },
+    {
+      "concurrent_voters": 50,
+      "tps": 12.56,
+      "mean_latency_ms": 935.11,
+      "p95_latency_ms": 1871.08,
+      "error_rate_pct": 0.0
+    },
+    {
+      "concurrent_voters": 100,
+      "tps": 17.73,
+      "mean_latency_ms": 627.62,
+      "p95_latency_ms": 848.74,
+      "error_rate_pct": 0.0
+    },
+    {
+      "concurrent_voters": 200,
+      "tps": 18.65,
+      "mean_latency_ms": 636.97,
+      "p95_latency_ms": 824.43,
+      "error_rate_pct": 0.5
+    }
+  ]
+}
