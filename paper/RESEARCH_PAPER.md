@@ -49,7 +49,7 @@ We operate under an active adversary model across three sovereign consortium org
 Let $p, q$ be large safe primes. Define $n = p \cdot q$ and $\lambda = \text{lcm}(p-1, q-1)$. Select base generator $g = n + 1 \in \mathbb{Z}_{n^2}^*$. The public key is $(n, g)$ and the private key is $(\lambda, \mu)$, where:
 $$\mu = \left( L(g^\lambda \bmod n^2) \right)^{-1} \bmod n, \quad \text{with } L(u) = \frac{u-1}{n}$$
 
-For a candidate selection vector element $v_k \in \{0, 1\}$ and blinding factor $r_k \xleftarrow{\$} \mathbb{Z}_n^*$, the ciphertext is:
+For a candidate selection vector element $v_k \in \{0, 1\}$ and blinding factor $r_k \in \mathbb{Z}_n^*$, the ciphertext is:
 $$c_k = \mathcal{E}(v_k, r_k) = g^{v_k} \cdot r_k^n \pmod{n^2}$$
 
 Given two ciphertexts $c_1 = \mathcal{E}(m_1)$ and $c_2 = \mathcal{E}(m_2)$:
@@ -61,12 +61,12 @@ $$T_k = \sum_{i=1}^N v_{i, k} = L\left( C_{\text{agg}}[k]^\lambda \bmod n^2 \rig
 
 ### 2.3 Credential-Bound Deterministic Nullifiers
 To prevent double voting without deanonymizing voters, each client locally derives:
-$$\text{NF} = \text{HMAC-SHA256}(sk_v, \text{"NULLIFIER:"} \mathbin{\Vert} \text{election\_id})$$
-where $sk_v$ is the voter's private secret certified by the registration authority. In conjunction, the client generates a non-interactive zero-knowledge binding proof $\pi_{\text{bind}}$ proving knowledge of $sk_v$ linking the identity commitment $C_{\text{id}} = \text{SHA256}(sk_v \mathbin{\Vert} r)$ to $\text{NF}$.
+$$\text{NF} = \text{HMAC-SHA256}(sk_v, \text{NULLIFIER} \parallel \text{election\_id})$$
+where $sk_v$ is the voter's private secret certified by the registration authority. In conjunction, the client generates a non-interactive zero-knowledge binding proof $\pi_{\text{bind}}$ proving knowledge of $sk_v$ linking the identity commitment $C_{\text{id}} = \text{SHA256}(sk_v \parallel r)$ to $\text{NF}$.
 
 ### 2.4 Non-Interactive Zero-Knowledge (NIZK) 1-of-K Proofs
 To prevent ballot stuffing, the client proves that the vector $\mathbf{v} = [v_1, \dots, v_K]$ satisfies $v_k \in \{0, 1\}$ and $\sum_{k=1}^K v_k = 1$ using a disjunctive Cramer-Damgård-Schoenmakers (CDS94) $\Sigma$-protocol converted to non-interactive form via the Fiat-Shamir heuristic:
-$$e = \text{SHA256}(c_1 \mathbin{\Vert} \dots \mathbin{\Vert} c_K \mathbin{\Vert} a_1 \mathbin{\Vert} \dots \mathbin{\Vert} a_K) \bmod q$$
+$$e = \text{SHA256}(c_1 \parallel \dots \parallel c_K \parallel a_1 \parallel \dots \parallel a_K) \bmod q$$
 
 ### 2.5 Shamir-Lagrange (2, 3) Threshold Decryption
 The private key $\lambda$ is partitioned into 3 evaluation points via polynomial $f(x) = \lambda + a_1 x \pmod{\lambda}$:
